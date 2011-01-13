@@ -26,7 +26,7 @@
 #   and its symbolic link
 
 ### BEGIN INIT INFO
-# Provides:          rtMonitor
+# Provides:          RTBM
 # Required-Start:    $network
 # Required-Stop:
 # Default-Start:     3 5
@@ -39,19 +39,19 @@
 ### END INIT INFO
 
 # Check for missing binaries
-RTMONITOR_BIN=/usr/sbin/rtbm.py
-test -x $RTMONITOR_BIN || { echo "$RTMONITOR_BIN not installed";
+RTBM_BIN=/usr/sbin/rtbm.py
+test -x $RTBM_BIN || { echo "$RTBM_BIN not installed";
         if [ "$1" = "stop" ]; then exit 0;
         else exit 5; fi; }
 
 # Check for existence of needed config file and read it
-RTMONITOR_CONFIG=/etc/rtbm.conf
-test -r $RTMONITOR_CONFIG || { echo "$RTMONITOR_CONFIG not existing";
+RTBM_CONFIG=/etc/rtbm.conf
+test -r $RTBM_CONFIG || { echo "$RTBM_CONFIG not existing";
         if [ "$1" = "stop" ]; then exit 0;
         else exit 6; fi; }
 
 # Read config
-. $RTMONITOR_CONFIG
+. $RTBM_CONFIG
 
 . /lib/lsb/init-functions
 
@@ -61,7 +61,7 @@ export PATH="${PATH:+$PATH:}/usr/sbin:/sbin"
 case "$1" in
   start)
         log_daemon_msg "Starting Real Time Bandwidth Monitor server" "rtbm"
-        if start-stop-daemon --start --oknodo --pidfile $PID_FILE --exec $RTMONITOR_BIN -- $RTMONITOR_OPTS --pid-file $PID_FILE; then
+        if start-stop-daemon --start --oknodo --pidfile $PID_FILE --exec $RTBM_BIN -- $RTBM_OPTS --pid-file $PID_FILE; then
             log_end_msg 0
         else
             log_end_msg 1
