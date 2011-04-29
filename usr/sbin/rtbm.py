@@ -29,9 +29,14 @@ import threading
 import thread
 import copy
 import cjson
+#import json
 import fcntl
 import signal
 import os
+import ConfigParser
+import io
+import smtplib
+from email.mime.text import MIMEText
 
 protocols={socket.IPPROTO_ICMP:'icmp',
 	socket.IPPROTO_TCP:'tcp',
@@ -148,24 +153,64 @@ class Report( threading.Thread ):
 			response['incoming'] = icounter
 			response['iface'] = iface
 			f.write(cjson.encode(response))
+			#f.write(json.write(response))
 			f.close()
 			time.sleep(cycle_time)
 
+class Notification():
+	def __init__( self, server, port, encrypt, origin, username, password, destinations):
+		self.server = server
+		self.port = port
+		self.encrypt = encrypt
+		self.origin = origin
+		self.username = username
+		self.password = password
+		self.destinations = destinations
+	
+	def notifyAdministrators(self):
+		if self.encrypt == "smtps":
+			s = smtplib.SMTP_SSL(self.server, self.port)
+		else:
+			s = smtplib.SMTP(self.server, self.port)
+		#s.set_debuglevel(1)
+
+		if self.encrypt == "starttls":
+			s.starttls()
+			
+		print len(self.username)
+		if len(self.username) > 0:
+			s.login(self.username, self.password)
+
+		for destination in self.destinations.split(','):
+			msg = MIMEText("hola cabezon")
+			msg['Subject'] = 'subject'
+			msg['From'] = self.origin
+			msg['To'] = destination
+			s.sendmail(self.origin, [destination], msg.as_string())
+		s.quit()
+
+		print self.encrypt
+		print self.server
+		print self.port
+		print self.origin
+		print self.username
+		print self.password
+		print self.destinations
+		
+
+
 
 def usage():
-	print 'Usage: ' + sys.argv[0] + ' --iface=<interface> --stat-file=<output file of (JSON) statistics> --cycle-time=<time in seconds of the interval to update the stat file>'
+	print 'Usage: ' + sys.argv[0] + ' --config-file=<path to the file that holds the configuration for rtbm> --pid-file=<the file that will be used to hold the process id of the service>'
 
 def main(argv):
-	global stat_file
+	
 	global pid_file
-	global cycle_time
-	global iface
-	stat_file = None
 	pid_file = None
-	iface = None
-	cycle_time = None
+	global config_file
+	config_file = None
 	try:
-		opts, args = getopt.getopt(argv, "s:i:t:c:p:h", ["stat-file=", "iface=", "cycle-time=", "pid-file=", "help"])
+		opts, args = getopt.getopt(argv, "c:p:h", ["config-file=", "pid-file=", "help"])
 	except getopt.GetoptError:
 		usage()
 		sys.exit(-1)
@@ -173,18 +218,41 @@ def main(argv):
 		if opt in ("-h", "--help"):
 			usage()
 			sys.exit()
-		elif opt in ("-i", "--iface"):
-			iface = arg
-		elif opt in ("-c", "--cycle-time"):
-			cycle_time = float(arg)
-		elif opt in ("-s", "--stat-file"):
-			stat_file = arg
 		elif opt in ("-p", "--pid-file"):
 			pid_file = arg
+		elif opt in ("-c", "--config-file"):
+			config_file = arg
 
-	if iface is None or stat_file is None or cycle_time is None or pid_file is None:
+	if config_file is None or pid_file is None:
 		usage()
 		sys.exit(-1)
+
+
+	with open(config_file, 'r') as f:
+		config_file_data = f.read()
+
+	config = ConfigParser.RawConfigParser(allow_no_value=True)
+	config.readfp(io.BytesIO(config_file_data))
+
+	global stat_file
+	global cycle_time
+	global iface
+	stat_file = config.get("general", "stat_file")
+	iface = config.get("general", "iface")
+	cycle_time = config.get("general", "cycle_time")
+	
+	encrypt = config.get("notifications", "encrypt")
+	server = config.get("notifications", "server")
+	port = config.getint("notifications", "port")
+	origin = config.get("notifications", "origin")
+	username = config.get("notifications", "username")
+	password = config.get("notifications", "password")
+	destinations = config.get("notifications", "destination")
+	
+	notifications = Notification(server, port, encrypt, origin, username, password, destinations)
+	notifications.notifyAdministrators()
+
+	sys.exit(0)
 
 	f = open(pid_file, mode='w')
 	f.write(str(os.getpid()))
