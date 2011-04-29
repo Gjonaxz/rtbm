@@ -177,7 +177,6 @@ class Notification():
 		if self.encrypt == "starttls":
 			s.starttls()
 			
-		print len(self.username)
 		if len(self.username) > 0:
 			s.login(self.username, self.password)
 
@@ -188,15 +187,6 @@ class Notification():
 			msg['To'] = destination
 			s.sendmail(self.origin, [destination], msg.as_string())
 		s.quit()
-
-		print self.encrypt
-		print self.server
-		print self.port
-		print self.origin
-		print self.username
-		print self.password
-		print self.destinations
-		
 
 
 
