@@ -182,8 +182,8 @@ class Notification():
 			s.login(self.username, self.password)
 
 		for destination in self.destinations.split(','):
-			msg = MIMEText("hola cabezon")
-			msg['Subject'] = 'subject'
+			msg = MIMEText("Abuse or congestion on the system")
+			msg['Subject'] = 'The system needs your attention'
 			msg['From'] = self.origin
 			msg['To'] = destination
 			s.sendmail(self.origin, [destination], msg.as_string())
