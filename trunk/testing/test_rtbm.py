@@ -22,6 +22,30 @@ class TestNotification(unittest.TestCase):
 		notifications = Notification("localhost", 465, "smtps", "rtbm@example.org", "", "", "sysadmin1@example.org,sysadmin2@example.org")
 		notifications.notifyAdministrators()
 
+class TestIPNetworkAnalysis(unittest.TestCase):
+  def setUp(self):
+    self.ipNetworkAnalysis = IPNetworkAnalysis()
+    self.ipNetworkAnalysis.createSOM(40, 40)
+
+  def test_som_creation(self):
+    self.assertEqual(self.ipNetworkAnalysis.getWidth(), 40)
+    self.assertEqual(self.ipNetworkAnalysis.getHeight(), 40)
+    
+  def test_train(self):
+    # generate an input that works to train the SOM
+    self.assertTrue(self.ipNetworkAnalysis.train())
+    
+  def test_abuse(self):
+    # create an input that will generate an abuse
+    self.assertTrue(self.ipNetworkAnalysis.test(abuseInput))
+    
+  def test_congestion(self):
+    # create an input that will generate an congestion
+    self.assertTrue(self.ipNetworkAnalysis.test(congestionInput))
+
+    
+    
+
 
 def suite():
 	suite = unittest.TestSuite()

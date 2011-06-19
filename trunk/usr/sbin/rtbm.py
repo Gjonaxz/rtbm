@@ -38,6 +38,15 @@ import io
 import smtplib
 from email.mime.text import MIMEText
 
+#CSOM
+import ctypes
+
+
+lib = ctypes.cdll.LoadLibrary('/usr/lib/libsom.so')
+lib.CSOM_getNodeWeights.restype = ctypes.POINTER(ctypes.c_double)
+lib.CSOM_setTrainingValues.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_double), ctypes.c_int, ctypes.c_int, ctypes.c_double]
+lib.CSOM_new.restype = ctypes.c_void_p
+
 protocols={socket.IPPROTO_ICMP:'icmp',
 	socket.IPPROTO_TCP:'tcp',
 	socket.IPPROTO_UDP:'udp'}
@@ -52,6 +61,30 @@ BIDIRECTIONAL, INCOMING, OUTGOING = range(3)
 	##print '%d packets dropped by kernel' % ndrop
 	
 	#sys.exit(0)
+
+#CSOM wrapper
+class CSOM(object):
+  def __init__(self, width, height, numInputs):
+    self.obj = lib.CSOM_new(width, height, numInputs)
+  
+  def getWidth(self):
+    return lib.CSOM_getWidth(self.obj)
+
+  def getHeight(self):
+    return lib.CSOM_getHeight(self.obj)
+
+  def getNumInputNodes(self):
+    return lib.CSOM_getNumInputNodes(self.obj)
+
+  def getNodeWeights(self, x, y):
+    return lib.CSOM_getNodeWeights(self.obj, x, y)
+
+  def setTrainingValues(self, input, inputLenght, numIterations, initialLearningRate):
+    return lib.CSOM_setTrainingValues(self.obj, input, inputLenght, numIterations, initialLearningRate)
+
+  def trainNextIteration(self):
+    return lib.CSOM_trainNextIteration(self.obj)
+
 
 
 class PacketDetails:
