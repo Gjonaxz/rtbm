@@ -122,11 +122,11 @@ document.observe('dom:loaded', function () {
 		},
 		xaxis:{
 			noTicks: 10,
-			tickFormatter: xAxisLabel,
+			tickFormatter: xAxisLabel
 		},
 		yaxis:{
 			noTicks: 10,
-			tickFormatter: yAxisLabel,
+			tickFormatter: yAxisLabel
 		},
 		colors: [
 			"black",

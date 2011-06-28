@@ -63,27 +63,33 @@ BIDIRECTIONAL, INCOMING, OUTGOING = range(3)
 	#sys.exit(0)
 
 #CSOM wrapper
-class CSOM(object):
-  def __init__(self, width, height, numInputs):
-    self.obj = lib.CSOM_new(width, height, numInputs)
+class IPNetworkAnalyzer(object):
+  def __init__(self):
+    self.csom = lib.CSOM_new(10, 10, 3)
   
+  def query(self):
+    #TODO: Implement
+    
+  def train(self):
+    #TODO: Implement
+
   def getWidth(self):
-    return lib.CSOM_getWidth(self.obj)
+    return lib.CSOM_getWidth(self.csom)
 
   def getHeight(self):
-    return lib.CSOM_getHeight(self.obj)
+    return lib.CSOM_getHeight(self.csom)
 
   def getNumInputNodes(self):
-    return lib.CSOM_getNumInputNodes(self.obj)
+    return lib.CSOM_getNumInputNodes(self.csom)
 
   def getNodeWeights(self, x, y):
-    return lib.CSOM_getNodeWeights(self.obj, x, y)
+    return lib.CSOM_getNodeWeights(self.csom, x, y)
 
   def setTrainingValues(self, input, inputLenght, numIterations, initialLearningRate):
-    return lib.CSOM_setTrainingValues(self.obj, input, inputLenght, numIterations, initialLearningRate)
+    return lib.CSOM_setTrainingValues(self.csom, input, inputLenght, numIterations, initialLearningRate)
 
   def trainNextIteration(self):
-    return lib.CSOM_trainNextIteration(self.obj)
+    return lib.CSOM_trainNextIteration(self.csom)
 
 
 
