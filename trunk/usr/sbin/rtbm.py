@@ -31,6 +31,7 @@ import copy
 import cjson
 #import json
 import fcntl
+import math
 import signal
 import os
 import ConfigParser
@@ -43,8 +44,10 @@ import ctypes
 
 
 lib = ctypes.cdll.LoadLibrary('/usr/lib/libsom.so')
-lib.CSOM_getNodeWeights.restype = ctypes.POINTER(ctypes.c_double)
-lib.CSOM_setTrainingValues.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_double), ctypes.c_int, ctypes.c_int, ctypes.c_double]
+#lib.CSOM_getNodeWeights.restype = ctypes.POINTER(ctypes.c_double)
+#lib.CSOM_setTrainingValues.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_double), ctypes.c_int, ctypes.c_int, ctypes.c_double]
+lib.CSOM_query.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_double), ctypes.c_int]
+lib.CSOM_importState.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
 lib.CSOM_new.restype = ctypes.c_void_p
 
 protocols={socket.IPPROTO_ICMP:'icmp',
@@ -62,34 +65,42 @@ BIDIRECTIONAL, INCOMING, OUTGOING = range(3)
 	
 	#sys.exit(0)
 
+def sigmoid(value):
+#	return 1.0/(1.0+math.exp(-float(value)))
+	return value/(1.0+math.fabs(value))
+
 #CSOM wrapper
 class IPNetworkAnalyzer(object):
-  def __init__(self):
-    self.csom = lib.CSOM_new(10, 10, 3)
-  
-  def query(self):
-    #TODO: Implement
-    
-  def train(self):
-    #TODO: Implement
+	def __init__(self):
+		self.csom = lib.CSOM_new(15, 15, 300)
+	
+	def query(self, sample):
+		size = len(sample)
+		csample = (ctypes.c_double * size)()
+		for node in range(0, size):
+			csample[node] = sigmoid(sample[node])
+		lib.CSOM_query(self.csom, csample, size)
 
-  def getWidth(self):
-    return lib.CSOM_getWidth(self.csom)
+	def importState(self):
+		lib.CSOM_importState(self.csom, ctypes.c_char_p("/var/lib/rtbm/SOM_state.dat"))
 
-  def getHeight(self):
-    return lib.CSOM_getHeight(self.csom)
+	#def getWidth(self):
+		#return lib.CSOM_getWidth(self.csom)
 
-  def getNumInputNodes(self):
-    return lib.CSOM_getNumInputNodes(self.csom)
+	#def getHeight(self):
+		#return lib.CSOM_getHeight(self.csom)
 
-  def getNodeWeights(self, x, y):
-    return lib.CSOM_getNodeWeights(self.csom, x, y)
+	#def getNumInputNodes(self):
+		#return lib.CSOM_getNumInputNodes(self.csom)
 
-  def setTrainingValues(self, input, inputLenght, numIterations, initialLearningRate):
-    return lib.CSOM_setTrainingValues(self.csom, input, inputLenght, numIterations, initialLearningRate)
+	#def getNodeWeights(self, x, y):
+		#return lib.CSOM_getNodeWeights(self.csom, x, y)
 
-  def trainNextIteration(self):
-    return lib.CSOM_trainNextIteration(self.csom)
+	#def setTrainingValues(self, input, inputLenght, numIterations, initialLearningRate):
+		#return lib.CSOM_setTrainingValues(self.csom, input, inputLenght, numIterations, initialLearningRate)
+
+	#def trainNextIteration(self):
+		#return lib.CSOM_trainNextIteration(self.csom)
 
 
 
@@ -111,19 +122,23 @@ class Counter:
 	def __init__(self):
 		self.lock=thread.allocate_lock()
 		self.counter={}
+		self.aggregate=0
 	def addPacket(self, packetDetails):
 		self.lock.acquire()
 		if self.counter.has_key(packetDetails.getAddress()):
 			self.counter[packetDetails.getAddress()] += packetDetails.getSize()
 		else:
 			self.counter[packetDetails.getAddress()] = packetDetails.getSize()
+		self.aggregate += packetDetails.getSize()
 		self.lock.release()
 	def getCounter(self):
 		self.lock.acquire()
-		copy = self.counter
+		counter_copy = self.counter
+		aggregate_copy = self.aggregate
 		self.counter={}
+		self.aggregate=0
 		self.lock.release()
-		return copy
+		return (counter_copy, aggregate_copy)
 	def __str__(self):
 		return str(self.counter)
 
@@ -151,7 +166,7 @@ class Capture( threading.Thread ):
 		for ts, pkt in self.pc:
 			if pkt is not None:
 				d={}
-				d['size']=len(pkt)*8/1024 #length of packet as caputred, transformed from bytes to kbits
+				d['size']=len(pkt) #length of packet as caputred, in bytes
 				#print d['size']
 				decoded=decode_ip_packet(d, pkt[14:])
 				# Assuming this is a TCP/UDP packet, from the filter.
@@ -169,14 +184,20 @@ class Report( threading.Thread ):
 		threading.Thread.__init__( self )
 
 	def run( self ):
+		global cycle_time
+		giaggregated = []
 		incoming = Capture(INCOMING)
 		incoming.start()
 		outgoing = Capture(OUTGOING)
 		outgoing.start()
 		
+		analizer = IPNetworkAnalyzer()
+		analizer.importState()
+		
+		
 		while True:
-			icounter=incoming.counter.getCounter()
-			ocounter=outgoing.counter.getCounter()
+			(icounter, iaggregated)=incoming.counter.getCounter()
+			(ocounter, oaggregated)=outgoing.counter.getCounter()
 			f = open(stat_file, mode='w')
 			response={}
 			nrecv, ndrop, nifdrop = incoming.getStats()
@@ -194,6 +215,16 @@ class Report( threading.Thread ):
 			f.write(cjson.encode(response))
 			#f.write(json.write(response))
 			f.close()
+			
+			#Send the last 5 minutes of bandwidth to be analized by the IPNetworkAnalyzer
+			giaggregated.insert(0, iaggregated)
+			if len(giaggregated) > 300:
+				giaggregated.pop()
+				print analizer.query(giaggregated)
+			goaggregated.insert(0, iaggregated)
+			if len(goaggregated) > 300:
+				goaggregated.pop()
+				print analizer.query(goaggregated)
 			time.sleep(cycle_time)
 
 class Notification():
@@ -268,7 +299,7 @@ def main(argv):
 	global iface
 	stat_file = config.get("general", "stat_file")
 	iface = config.get("general", "iface")
-	cycle_time = config.get("general", "cycle_time")
+	cycle_time = float(config.get("general", "cycle_time"))
 	
 	encrypt = config.get("notifications", "encrypt")
 	server = config.get("notifications", "server")
@@ -279,14 +310,11 @@ def main(argv):
 	destinations = config.get("notifications", "destination")
 	
 	notifications = Notification(server, port, encrypt, origin, username, password, destinations)
-	notifications.notifyAdministrators()
-
-	sys.exit(0)
 
 	f = open(pid_file, mode='w')
 	f.write(str(os.getpid()))
 	f.close()
-	
+		
 	report = Report()
 	report.start()
 

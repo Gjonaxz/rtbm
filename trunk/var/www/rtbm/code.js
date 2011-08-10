@@ -55,9 +55,10 @@ function copyData(data, jsonData, ranking, time, ticksToHold){
 
 	//Process the new ones
 	for(var ip in jsonData){
-		ranking[ip] = jsonData[ip]
-		aggregated.value += jsonData[ip]
-		data.push({"label":ip,"data":[[time, jsonData[ip]]]});
+		val = jsonData[ip]
+		ranking[ip] = val
+		aggregated.value += val
+		data.push({"label":ip,"data":[[time, val]]});
 	}
 	if (data[0].label != "aggregated")
 		alert("bug!")
@@ -73,7 +74,7 @@ function xAxisLabel (val){
 }
 
 function yAxisLabel (val){
-	return val + 'Kbps'; //We get the size in kbps
+	return (val*8/1024) + 'Kbps'; //We get the size in kbps
 }
 
 function extractTop(data, noToShow){
@@ -101,10 +102,10 @@ function talkToGraph(){
 }
 
 function showFullRanking(data, ranking, destination){
-	var num = ranking["aggregated"]/8/1024;
+	var num = ranking["aggregated"]/1024/1024;
 	destination.innerHTML = "<strong>Total: " + num.toFixed(2) + "Mb</strong><br><br>";
 	for (var counter = 1 ; counter < data.length ; counter++){ // start on 1 to skip the aggregated
-		num = ranking[data[counter].label]/8/1024;
+		num = ranking[data[counter].label]/1024/1024;
 		destination.innerHTML += counter + ". " + data[counter].label + ": " + num.toFixed(2) + "Mb<br>";
 	}
 
