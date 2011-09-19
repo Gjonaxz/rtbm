@@ -29,13 +29,11 @@ import threading
 import thread
 import copy
 import cjson
-#import json
 import fcntl
 import math
 import signal
 import os
 import ConfigParser
-import io
 import smtplib
 from email.mime.text import MIMEText
 
@@ -43,10 +41,11 @@ from email.mime.text import MIMEText
 import ctypes
 
 
-lib = ctypes.cdll.LoadLibrary('/usr/lib/libsom.so')
+lib = ctypes.cdll.LoadLibrary('/home/unixadmin/exclude/rtbm.som/usr/lib/libsom.so')
 #lib.CSOM_getNodeWeights.restype = ctypes.POINTER(ctypes.c_double)
 #lib.CSOM_setTrainingValues.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_double), ctypes.c_int, ctypes.c_int, ctypes.c_double]
 lib.CSOM_query.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_double), ctypes.c_int]
+lib.CSOM_query.restype = ctypes.c_double
 lib.CSOM_importState.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
 lib.CSOM_new.restype = ctypes.c_void_p
 
@@ -79,10 +78,10 @@ class IPNetworkAnalyzer(object):
 		csample = (ctypes.c_double * size)()
 		for node in range(0, size):
 			csample[node] = sigmoid(sample[node])
-		lib.CSOM_query(self.csom, csample, size)
+		return lib.CSOM_query(self.csom, csample, size)
 
 	def importState(self):
-		lib.CSOM_importState(self.csom, ctypes.c_char_p("/var/lib/rtbm/SOM_state.dat"))
+		lib.CSOM_importState(self.csom, ctypes.c_char_p("/home/unixadmin/exclude/rtbm.som/var/lib/rtbm/SOM_state.dat"))
 
 	#def getWidth(self):
 		#return lib.CSOM_getWidth(self.csom)
@@ -179,6 +178,7 @@ class Capture( threading.Thread ):
 	def getStats( self ):
 		return self.pc.stats()
 		
+
 class Report( threading.Thread ):
 	def __init__( self ):
 		threading.Thread.__init__( self )
@@ -186,6 +186,7 @@ class Report( threading.Thread ):
 	def run( self ):
 		global cycle_time
 		giaggregated = []
+		goaggregated = []
 		incoming = Capture(INCOMING)
 		incoming.start()
 		outgoing = Capture(OUTGOING)
@@ -193,6 +194,7 @@ class Report( threading.Thread ):
 		
 		analizer = IPNetworkAnalyzer()
 		analizer.importState()
+		
 		
 		
 		while True:
@@ -213,18 +215,25 @@ class Report( threading.Thread ):
 			response['incoming'] = icounter
 			response['iface'] = iface
 			f.write(cjson.encode(response))
-			#f.write(json.write(response))
 			f.close()
-			
 			#Send the last 5 minutes of bandwidth to be analized by the IPNetworkAnalyzer
 			giaggregated.insert(0, iaggregated)
+			reso=1
+			resi=1
 			if len(giaggregated) > 300:
 				giaggregated.pop()
-				print analizer.query(giaggregated)
-			goaggregated.insert(0, iaggregated)
+				print response['time'], ";",
+				resi = analizer.query(giaggregated)
+				print ";",
+			goaggregated.insert(0, oaggregated)
 			if len(goaggregated) > 300:
 				goaggregated.pop()
-				print analizer.query(goaggregated)
+				reso = analizer.query(goaggregated)
+				print "\n",
+			
+			if reso < 0.00001 or resi < 0.00001:
+				notifications.notifyAdministrators()
+				
 			time.sleep(cycle_time)
 
 class Notification():
@@ -288,11 +297,13 @@ def main(argv):
 		sys.exit(-1)
 
 
-	with open(config_file, 'r') as f:
-		config_file_data = f.read()
+	#f = open(config_file, 'r')
+	#config_file_data = f.read()
 
-	config = ConfigParser.RawConfigParser(allow_no_value=True)
-	config.readfp(io.BytesIO(config_file_data))
+	#config = ConfigParser.RawConfigParser(allow_no_value=True)
+	config = ConfigParser.RawConfigParser()
+	config.read(config_file)
+	#config.readfp(io.BytesIO(config_file_data))
 
 	global stat_file
 	global cycle_time
@@ -321,12 +332,12 @@ def main(argv):
 
 
 if __name__ == '__main__':
-	try: 
-		pid = os.fork() 
-		if pid > 0:
-			# exit first parent
-			sys.exit(0) 
-	except OSError, e: 
-		print >>sys.stderr, "fork #1 failed: %d (%s)" % (e.errno, e.strerror) 
-		sys.exit(1)
+	#try: 
+		#pid = os.fork() 
+		#if pid > 0:
+			## exit first parent
+			#sys.exit(0) 
+	#except OSError, e: 
+		#print >>sys.stderr, "fork #1 failed: %d (%s)" % (e.errno, e.strerror) 
+		#sys.exit(1)
 	main(sys.argv[1:])
